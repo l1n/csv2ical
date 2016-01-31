@@ -3,10 +3,11 @@
 use strict;
 use warnings;
 
-use local::lib 'perl5';
+use if -d "perl5", 'local::lib' => 'perl5';
 
 use Getopt::Long;
 use Pod::Usage;
+use File::Temp qw( :POSIX );
 
 use Tie::iCal;
 use DateTime::Format::ICal;
@@ -19,19 +20,23 @@ Getopt::Long::Configure (
 
 my $file;
 my $help = 0;
+my $stdout = 0;
+my $vcal = 0;
 my %shows;
 
 GetOptions (
     'file=s'  => \$file,
-    'help'  => \$help,
-) and $file
+    'stdout'  => \$stdout,
+    'vcal'    => \$vcal,
+    'help'    => \$help,
+) and ($file || $stdout)
 or die pod2usage(                   # Print documentation and quit if bad opts
     -exitval => $help,              # With return value 0 if $help was not set
     -verbose => 2                   # Print all the sections
 );
 
+$file = tmpnam() if $stdout;
 system "touch $file";
-
 tie %shows, 'Tie::iCal', $file;
 
 my %dayHash = (
@@ -91,6 +96,12 @@ while (<>) {
 }
 
 untie %shows;
+
+unless ($vcal) {
+    my $staging = tmpnam();
+    system "echo BEGIN:VCALENDAR > $staging && grep -v VCALENDAR $file >> $staging && echo END:VCALENDAR >> $staging && cat $staging > $file && rm $staging";
+}
+system "cat $file && rm $file" if $stdout;
 
 __END__
 
